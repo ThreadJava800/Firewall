@@ -5,7 +5,6 @@ import json
 import ipaddress
 import os.path
 import socket
-import struct
 
 TRANSFER_SIZE = 4096
 
@@ -126,7 +125,10 @@ def listen(in_sock: socket, out_sock: socket, filter: Filter):
         passed = filter.filter(parsed_request)
 
         if passed:
+            print("PACKET PASSED")
             out_sock.sendall(raw_request)
+        else:
+            print("PACKET NOT PASSED")
 
 def is_valid_file(parser, arg):
     if not os.path.exists(arg):

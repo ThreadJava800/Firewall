@@ -1,8 +1,10 @@
 {
-    "allowed": [
+    "banned": [
         {
-            "protocol": "tcp",
-            "src_ip": "127.0.0.2"
+            "protocol": "tcp"
+        },
+        {
+            "protocol": "udp"
         }
     ]
 }
