@@ -1,0 +1,8 @@
+{
+    "allowed": [
+        {
+            "protocol": "tcp",
+            "src_ip": "127.0.0.2"
+        }
+    ]
+}
