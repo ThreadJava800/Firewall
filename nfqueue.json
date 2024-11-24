@@ -1,0 +1,12 @@
+{
+    "banned": [
+        {
+            "dns_mode": "resp",
+            "class": 1
+        },
+        {
+            "dns_mode": "resp",
+            "class": 2
+        }
+    ]
+}
