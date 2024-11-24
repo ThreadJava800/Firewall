@@ -1,10 +1,10 @@
 import argparse
-import dpkt
 import enum
 import json
 import netfilterqueue
 import os
 import socket
+from scapy.all import *
 
 class DNSType(enum.Enum):
     QUESTION = 0,
@@ -83,13 +83,15 @@ class Filter:
             except KeyError:
                 pass
 
-    def filter(self, package: dpkt.ethernet.Ethernet) -> bool:
-        dns_level_packet = dpkt.dns.DNS(package.data.data.data)
-
+    def filter(self, package) -> bool:
         is_allowed = (self.mode.value == Mode.ALLOW_MODE.value)
-        if dns_level_packet.qr == dpkt.dns.DNS_R:
-            dns_resp_level = dns_level_packet.unpack_rr(package, 0)[0]
-            name_, type_, class_, len_ = dns_resp_level.name, dns_resp_level.type, dns_resp_level.cls, dns_resp_level.rlaen
+
+        if package.haslayer(DNSRR):
+            dns_resp_level = package.getlayer(DNSRR)
+            name_, type_, class_, len_ = dns_resp_level.get_field("rrname").i2repr(dns_resp_level, dns_resp_level.rrname), \
+                                         dns_resp_level.type, \
+                                         dns_resp_level.rclass, \
+                                         dns_resp_level.rdlen
 
             if len(self.response_names) != 0 and ((is_allowed and not name_ in self.response_names) or (not is_allowed and name_ in self.response_names)):
                return False 
@@ -99,9 +101,11 @@ class Filter:
                return False 
             if len(self.response_len) != 0 and ((is_allowed and not len_ in self.response_len) or (not is_allowed and len_ in self.response_len)):
                return False 
-        if dns_level_packet.qr == dpkt.dns.DNS_Q:
-            dns_quest_level = dns_level_packet.unpack_q(package, 0)[0]
-            name_, type_, class_ = dns_quest_level.name, dns_quest_level.type, dns_quest_level.cls
+        if package.haslayer(DNSQR):
+            dns_quest_level = package.getlayer(DNSQR)
+            name_, type_, class_ = dns_quest_level.get_field("qname").i2repr(dns_quest_level, dns_quest_level.qname), \
+                                   dns_quest_level.qtype, \
+                                   dns_quest_level.qclass
 
             if len(self.quest_names_names) != 0 and ((is_allowed and not name_ in self.response_names) or (not is_allowed and name_ in self.response_names)):
                return False 
@@ -138,11 +142,10 @@ def createParser() -> argparse:
     return parser
 
 def evtQueue(package, filter: Filter):
-    request = package.get_payload()
-    parsed_request = dpkt.ethernet.Ethernet(request)
+    request = IP(package.get_payload())
 
-    if isinstance(parsed_request.data, dpkt.ip.IP) and isinstance(parsed_request.data.data.data, dpkt.dns.DNS):
-        if filter.filter(parsed_request):
+    if request.haslayer(DNS):
+        if filter.filter(request):
             print("PACKET PASSED")
             return request.accept()
         
@@ -154,7 +157,14 @@ def runQueue(args, filter: Filter) -> netfilterqueue.NetfilterQueue:
     queue = netfilterqueue.NetfilterQueue()
     queue.bind(args.queue_cnt, callback)
     socket_ = socket.fromfd(queue.get_fd(), socket.AF_UNIX, socket.SOCK_STREAM)
-    queue.run_socket(socket_)
+
+    try:
+        queue.run_socket(socket_)
+    except KeyboardInterrupt:
+        pass
+
+    socket_.close()
+    queue.unbind()
 
 
 def realMain():
